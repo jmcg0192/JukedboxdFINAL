@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Search - Jukeboxd</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #121212;
+      color: #f1f1f1;
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+    }
+    .navbar {
+      background-color: #1f1f1f;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+    }
+    .navbar-brand {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #00b894;
+    }
+    .navbar-nav .nav-link {
+      color: #ccc;
+      margin-right: 1rem;
+    }
+    .navbar-nav .nav-link:hover {
+      color: #fff;
+    }
+    .search-container {
+      margin: 2rem auto;
+      max-width: 600px;
+      text-align: center;
+    }
+    #searchInput {
+      width: 100%;
+      padding: 1rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 1rem;
+      background-color: #2a2a2a;
+      color: #f1f1f1;
+    }
+    .section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem 2rem;
+    }
+    .section h2 {
+      margin-bottom: 1rem;
+      color: #f1f1f1;
+      font-size: 1.3rem;
+    }
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+    .album-tile {
+      background-color: #1f1f1f;
+      border-radius: 8px;
+      overflow: hidden;
+      text-align: center;
+      transition: transform 0.2s ease-in-out;
+    }
+    .album-tile:hover {
+      transform: scale(1.05);
+    }
+    .album-tile img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+    }
+    .album-info {
+      padding: 0.5rem;
+    }
+    .album-title {
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: #f1f1f1;
+    }
+    .album-artist {
+      font-size: 0.8rem;
+      color: #aaaaaa;
+    }
+    .stars {
+      margin-top: 0.5rem;
+    }
+    .star {
+      color: #888;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0 1px;
+    }
+    .star.full,
+    .star.half {
+      color: gold;
+    }
+    .audio-preview audio,
+    .tracklist audio {
+      margin-top: 4px;
+      width: 100%;
+      height: 30px;
+    }
+    .tracklist {
+      text-align: left;
+      background-color: #1c1c1c;
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 5px;
+    }
+    .tracklist li {
+      font-size: 0.85rem;
+      padding: 4px 0;
+      display: flex;
+      flex-direction: column;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="#">
+        <img src="JukeBoxicon.png" alt="Jukeboxd Logo" style="height: 60px; margin-left: 12px;">
+      </a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="profile.html">Profile</a></li>
+          <li class="nav-item"><a class="nav-link" href="recommendation.html">Recommendations</a></li>
+          <li class="nav-item"><a class="nav-link" href="index.html">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="Search for an album, song, or artist...">
+  </div>
+
+  <div class="section">
+    <h2>Albums</h2>
+    <div class="results-grid" id="albums"></div>
+  </div>
+
+  <div class="section">
+    <h2>Singles</h2>
+    <div class="results-grid" id="singles"></div>
+  </div>
+
+  <script src="getJSONData.js"></script>
+  <script src="putJSONData.js"></script>
+  <script>
+    const currentUser = JSON.parse(sessionStorage.getItem("loggedInUser"));
+
+    async function saveToUserList(item, isAlbum) {
+      const rating = parseFloat(localStorage.getItem(`rating-${item.id}`)) || 0;
+      item.rating = rating;
+
+      const users = await getJSONData();  // ✅ getJSONData() already returns the array
+      console.log("Fetched users:", users);
+
+      // ✅ Find current user by username
+      const userIndex = users.findIndex(u => u.Username === currentUser.Username);
+      if (userIndex === -1) {
+        alert("Current user not found in database.");
+        return;
+      }
+
+      const user = users[userIndex];
+      const list = isAlbum ? user.selectedAlbums : user.selectedSongs;
+      const exists = list.some(entry => entry.id === item.id);
+
+      if (!exists) {
+        list.push(item);
+        await putJSONData(users);  // ✅ Save entire users array back
+        sessionStorage.setItem("loggedInUser", JSON.stringify(user));
+        alert(`${item.title} added to your ${isAlbum ? 'album' : 'song'} list with rating ${rating}.`);
+      } else {
+        alert("Already in your list.");
+      }
+    }
+
+
+    function createStarRating(id) {
+      const container = document.createElement("div");
+      container.className = "stars";
+
+      const maxStars = 5;
+      function render(rating) {
+        container.innerHTML = "";
+        for (let i = 1; i <= maxStars; i++) {
+          const star = document.createElement("i");
+          const full = i <= rating;
+          const half = (i - 0.5) === rating;
+
+          if (full) star.className = "fas fa-star star full";
+          else if (half) star.className = "fas fa-star-half-alt star half";
+          else star.className = "far fa-star star";
+
+          star.addEventListener("mousemove", (e) => {
+            const rect = e.target.getBoundingClientRect();
+            const isLeftHalf = e.clientX - rect.left < rect.width / 2;
+            star.title = isLeftHalf ? `${i - 0.5}` : `${i}`;
+          });
+
+          star.addEventListener("click", (e) => {
+            const rect = e.target.getBoundingClientRect();
+            const isLeftHalf = e.clientX - rect.left < rect.width / 2;
+            const selectedRating = isLeftHalf ? i - 0.5 : i;
+            localStorage.setItem(`rating-${id}`, selectedRating);
+            render(selectedRating);
+          });
+
+          container.appendChild(star);
+        }
+      }
+
+      const savedRating = parseFloat(localStorage.getItem(`rating-${id}`)) || 0;
+      render(savedRating);
+      return container;
+    }
+
+    document.getElementById("searchInput").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        const query = this.value.trim();
+        const albumsDiv = document.getElementById("albums");
+        const singlesDiv = document.getElementById("singles");
+        albumsDiv.innerHTML = "";
+        singlesDiv.innerHTML = "";
+        if (!query) return;
+
+        fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=album,song&limit=50`)
+          .then(res => res.json())
+          .then(data => {
+            const albumSeen = new Set();
+            const singleSeen = new Set();
+
+            const albumsToCheck = data.results.filter(item => item.collectionType === 'Album');
+            const singles = data.results.filter(item => item.collectionType !== 'Album');
+
+            albumsToCheck.forEach(album => {
+              const id = album.collectionId;
+              if (albumSeen.has(id)) return;
+              albumSeen.add(id);
+
+              fetch(`https://corsproxy.io/?https://itunes.apple.com/lookup?id=${id}&entity=song`)
+                .then(res => res.json())
+                .then(albumData => {
+                  const tracks = albumData.results.filter(i => i.wrapperType === 'track');
+                  if (tracks.length < 2) return;
+
+                  const itemData = {
+                    id: album.collectionId,
+                    title: album.collectionName,
+                    artist: album.artistName,
+                    artwork: album.artworkUrl100
+                  };
+
+                  const tile = document.createElement("div");
+                  tile.className = "album-tile";
+                  tile.innerHTML = `
+                    <img src="${itemData.artwork}" alt="Artwork">
+                    <div class="album-info">
+                      <div class="album-title">${itemData.title}</div>
+                      <div class="album-artist">${itemData.artist}</div>
+                      <button class="btn btn-sm btn-outline-light add-btn" onclick='saveToUserList(${JSON.stringify(itemData)}, true)'>+ Add to List</button>
+                      <button class="btn btn-sm btn-outline-info mt-2" onclick="toggleTracks(this, ${itemData.id})">Show Tracks</button>
+                      <ul class="tracklist" style="display:none;"></ul>
+                    </div>
+                  `;
+                  tile.querySelector(".album-info").appendChild(createStarRating(itemData.id));
+                  albumsDiv.appendChild(tile);
+                })
+                .catch(err => console.error("Album lookup error:", err));
+            });
+
+            singles.forEach(item => {
+              const id = item.trackId;
+              if (singleSeen.has(id)) return;
+              singleSeen.add(id);
+
+              const itemData = {
+                id: item.trackId,
+                title: item.trackName,
+                artist: item.artistName,
+                artwork: item.artworkUrl100
+              };
+
+              const tile = document.createElement("div");
+              tile.className = "album-tile";
+              let tileContent = `
+                <img src="${itemData.artwork}" alt="Artwork">
+                <div class="album-info">
+                  <div class="album-title">${itemData.title}</div>
+                  <div class="album-artist">${itemData.artist}</div>
+                  <button class="btn btn-sm btn-outline-light add-btn" onclick='saveToUserList(${JSON.stringify(itemData)}, false)'>+ Add to List</button>
+              `;
+              if (item.previewUrl) {
+                tileContent += `
+                  <div class="tracklist">
+                    <li>Preview:<audio controls src="${item.previewUrl}"></audio></li>
+                  </div>`;
+              }
+              tileContent += `</div>`;
+              tile.innerHTML = tileContent;
+              tile.querySelector(".album-info").appendChild(createStarRating(itemData.id));
+              singlesDiv.appendChild(tile);
+            });
+          });
+      }
+    });
+
+    function toggleTracks(button, collectionId) {
+      const tracklist = button.nextElementSibling;
+      if (tracklist.style.display === "block") {
+        tracklist.style.display = "none";
+        button.textContent = "Show Tracks";
+        return;
+      }
+      button.textContent = "Loading...";
+      fetch(`https://corsproxy.io/?https://itunes.apple.com/lookup?id=${collectionId}&entity=song`)
+        .then(res => res.json())
+        .then(data => {
+          const tracks = data.results.filter(item => item.wrapperType === 'track');
+          tracklist.innerHTML = tracks.map(t => {
+            const audio = t.previewUrl ? `<audio controls src='${t.previewUrl}'></audio>` : "";
+            return `<li>${t.trackNumber}. ${t.trackName} ${audio}</li>`;
+          }).join('');
+          tracklist.style.display = "block";
+          button.textContent = "Hide Tracks";
+        })
+        .catch(err => {
+          button.textContent = "Show Tracks";
+          alert("Error loading tracks.");
+          console.error("Track toggle error:", err);
+        });
+    }
+  </script>
+</body>
+</html>

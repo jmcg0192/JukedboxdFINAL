@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recommendations - Jukeboxd</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { background-color: #121212; color: #f1f1f1; font-family: 'Roboto', sans-serif; margin: 0; }
+    .navbar { background-color: #1f1f1f; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4); }
+    .navbar-brand { font-size: 1.5rem; font-weight: bold; color: #00b894; }
+    .navbar-nav .nav-link { color: #ccc; margin-right: 1rem; }
+    .navbar-nav .nav-link:hover { color: #fff; }
+    .container { margin-top: 2rem; }
+    .tab-content { margin-top: 2rem; }
+    .section-title { text-align: center; margin-bottom: 2rem; font-weight: bold; color: #00b894; }
+    .card { background-color: #1f1f1f; border: none; border-radius: 10px; overflow: hidden; transition: transform 0.3s; }
+    .card-body {
+      color: #ffffff; }
+    .card:hover { transform: scale(1.05); }
+    .card-img-top { height: 200px; object-fit: cover; }
+    .btn-primary { background-color: #00b894; border: none; }
+    .btn-primary:hover { background-color: #019670; }
+    .nav-tabs .nav-link { background: transparent; border: none; color: #ccc; }
+    .nav-tabs .nav-link.active { color: #00b894; border-bottom: 2px solid #00b894; }
+    .recommendation-section { padding: 20px; }
+    .loader { border: 5px solid #121212; border-radius: 50%; border-top: 5px solid #00b894; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg">
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center" href="#">
+      <img src="JukeBoxicon.png" alt="Jukeboxd Logo" style="height: 60px; margin-left: 12px;">
+    </a>
+    
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="profile.html">Profile</a></li>
+        <li class="nav-item"><a class="nav-link" href="songSearch.html">Search</a></li>
+        <li class="nav-item"><a class="nav-link" href="jukebox.html">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container recommendation-section">
+  <ul class="nav nav-tabs" id="recommendationTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="personalized-tab" data-bs-toggle="tab" data-bs-target="#personalized" type="button" role="tab">
+        Personalized Recommendations
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="trending-tab" data-bs-toggle="tab" data-bs-target="#trending" type="button" role="tab">
+        Trending Now
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="discover-tab" data-bs-toggle="tab" data-bs-target="#discover" type="button" role="tab">
+        Discover New Music
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="recommendationTabContent">
+    <div class="tab-pane fade show active" id="personalized" role="tabpanel">
+      <h2 class="section-title">Based on Your Selections</h2>
+      <div id="personalizedContent">
+        <p class="text-center">Please log in to see personalized recommendations.</p>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="trending" role="tabpanel">
+      <h2 class="section-title">What's Hot Right Now</h2>
+      <div class="row" id="trendingSongsContent">
+        <div class="loader"></div>
+      </div>
+      <div class="pagination-controls text-center mt-3" id="songsPagination">
+        <button class="btn btn-outline-primary" id="loadMoreSongs" onclick="loadMoreTrendingSongs()">Load 10 More</button>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="discover" role="tabpanel">
+      <h2 class="section-title">Discover By Genre</h2>
+      <div class="mb-4">
+        <select id="genreSelect" class="form-select">
+          <option value="all">All Genres</option>
+          <option value="pop">Pop</option>
+          <option value="rock">Rock</option>
+          <option value="hiphop">Hip Hop/Rap</option>
+          <option value="electronic">Electronic</option>
+          <option value="jazz">Jazz</option>
+          <option value="classical">Classical</option>
+          <option value="country">Country</option>
+          <option value="rnb">R&B/Soul</option>
+        </select>
+        <button class="btn btn-primary w-100 mt-2" onclick="discoverByGenre()">Discover</button>
+      </div>
+      <div id="discoverContent"></div>
+    </div>
+  </div>
+</div>
+
+<div id="userArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="getJSONData.js"></script>
+<script src="putJSONData.js"></script>
+<script>
+const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser"));
+if (!loggedInUser) window.location.href = "jukebox.html";
+let selectedSong = null;
+let selectedAlbum = null;
+
+function isDuplicateSong(title, artist) {
+  if (!loggedInUser || !loggedInUser.selectedSongs) return false;
+  return loggedInUser.selectedSongs.some(song =>
+    song.title.trim().toLowerCase() === title.trim().toLowerCase() &&
+    song.artist.trim().toLowerCase() === artist.trim().toLowerCase()
+  );
+}
+
+
+
+let trendingSongsPage = 1;
+let trendingSongsData = [];
+const itemsPerPage = 10;
+
+window.addEventListener('DOMContentLoaded', () => {
+  updateUserArea();
+  if (loggedInUser) loadPersonalizedRecommendations();
+  document.getElementById('trending-tab').addEventListener('click', () => {
+    if (trendingSongsData.length === 0) loadTrendingSongs();
+  });
+  document.getElementById('discover-tab').addEventListener('click', () => {
+    if (document.getElementById('discoverContent').innerHTML === '') {
+      discoverByGenre();
+    }
+  });
+});
+
+function updateUserArea() {
+  const userArea = document.getElementById('userArea');
+  userArea.innerHTML = '';
+}
+
+async function loadTrendingSongs() {
+  const div = document.getElementById('trendingSongsContent');
+  div.innerHTML = '<div class="loader"></div>';
+  try {
+    const res = await fetch('https://itunes.apple.com/us/rss/topsongs/limit=100/json');
+    const data = await res.json();
+    trendingSongsData = data.feed.entry || [];
+    renderTrendingSongs(0, itemsPerPage);
+    updateSongsPagination();
+  } catch (e) {
+    div.innerHTML = '<p class="text-center">Error loading trending songs.</p>';
+  }
+}
+
+async function fetchSongDetails(title, artist) {
+  try {
+    const q = `${encodeURIComponent(title)}%20${encodeURIComponent(artist)}`;
+    const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&entity=song&limit=1`);
+    const data = await res.json();
+    if (!data.results.length) return null;
+    return data.results[0];
+  } catch (e) {
+    console.error("Error fetching song details:", e);
+    return null;
+  }
+}
+
+function renderTrendingSongs(start, count) {
+  const div = document.getElementById('trendingSongsContent');
+  div.innerHTML = '';
+  const slice = trendingSongsData.slice(start, start + count);
+  if (slice.length === 0) {
+    div.innerHTML = '<p class="text-center">No songs available.</p>';
+    return;
+  }
+  
+  slice.forEach(async (item, index) => {
+    const title = item.title.label;
+    const artist = item['im:artist'].label;
+    const img = item['im:image'][2].label;
+    const genre = item.category.attributes.term;
+    
+    if (isDuplicateSong(title, artist)) return; 
+
+
+    // Create a placeholder card
+    const cardId = `trending-card-${start + index}`;
+    div.innerHTML += `
+      <div class="col-md-4 mb-4" id="${cardId}">
+        <div class="card h-100">
+          <img src="${img}" class="card-img-top" alt="${title}">
+          <div class="card-body">
+            <h5 class="card-title">${title}</h5>
+            <p class="card-text">Artist: ${artist}</p>
+            <p class="card-text">Genre: ${genre}</p>
+            <div class="audio-placeholder">Loading preview...</div>
+            <button class="btn btn-primary w-100" onclick="selectSong('${title.replace(/'/g, "\'")}', '${artist.replace(/'/g, "\'")}', '', '${img}')">Select</button>
+          </div>
+        </div>
+      </div>`;
+    
+    // Fetch preview URL and update card
+    const songDetails = await fetchSongDetails(title, artist);
+    const cardElement = document.getElementById(cardId);
+    if (cardElement && songDetails && songDetails.previewUrl) {
+      const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
+      audioPlaceholder.innerHTML = `
+        <audio controls class="w-100 mb-2">
+          <source src="${songDetails.previewUrl}" type="audio/mpeg">
+        </audio>`;
+      
+      // Update select button with full details
+      const selectBtn = cardElement.querySelector('.btn-primary');
+      selectBtn.onclick = function() {
+        selectSong(
+          songDetails.trackName.replace(/'/g, "\'"), 
+          songDetails.artistName.replace(/'/g, "\'"), 
+          songDetails.collectionName ? songDetails.collectionName.replace(/'/g, "\'") : '', 
+          songDetails.artworkUrl100
+        );
+      };
+    } else if (cardElement) {
+      const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
+      audioPlaceholder.innerHTML = `<p class="text-center">No preview available</p>`;
+    }
+  });
+}
+
+function updateSongsPagination() {
+  const btn = document.getElementById('loadMoreSongs');
+  if (trendingSongsData.length <= trendingSongsPage * itemsPerPage) {
+    btn.disabled = true; btn.textContent = 'No More Songs';
+  } else {
+    btn.disabled = false; btn.textContent = 'Load 10 More';
+  }
+}
+
+async function loadMoreTrendingSongs() {
+  const btn = document.getElementById('loadMoreSongs');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+  await new Promise(r => setTimeout(r, 500));
+  trendingSongsPage++;
+  renderTrendingSongs(0, trendingSongsPage * itemsPerPage);
+  updateSongsPagination();
+}
+async function loadPersonalizedRecommendations() {
+  const div = document.getElementById('personalizedContent');
+  div.innerHTML = '<div class="loader"></div>';
+
+  try {
+    // Check if user is logged in
+    if (!loggedInUser) {
+      div.innerHTML = `
+        <p class="text-center">Please log in to see personalized recommendations.</p>
+        <button class="btn btn-primary d-block mx-auto" onclick="window.location.href='jukebox.html'">Go to Login</button>
+      `;
+      return;
+    }
+
+    // Get latest user data
+    const data = await getJSONData();
+    console.log("Raw user data:", data); // Debug
+    console.log("Data from getJSONData():", data);
+    try {
+      const users = JSON.parse(data);
+      console.log("Parsed users:", users);
+    } catch (e) {
+      console.error("JSON parse error!", e);
+    }
+    
+    const users = data;
+
+    const current = users.find(u => u.Username === loggedInUser.Username);
+    console.log("Current user data:", current); // Debug
+
+    // Check if user has selected music
+    if (!current || 
+        ((!current.selectedSongs || current.selectedSongs.length === 0) &&
+         (!current.selectedAlbums || current.selectedAlbums.length === 0))) {
+      div.innerHTML = `
+        <p class="text-center">No recommendations available yet. Add some songs or albums to your profile first!</p>
+        <button class="btn btn-primary d-block mx-auto" onclick="window.location.href='songsearch.html'">Search for Music</button>
+      `;
+      return;
+    }
+
+    // Extract user music interests
+    const artists = new Set();
+    const genres = new Set();
+
+    if (current.selectedSongs) {
+      current.selectedSongs.forEach(s => {
+        if (s.artist) artists.add(s.artist);
+        // Note: genre often missing in song data, will need to handle this
+      });
+    }
+
+    if (current.selectedAlbums) {
+      current.selectedAlbums.forEach(a => {
+        if (a.artist) artists.add(a.artist);
+        // Note: genre often missing in album data, will need to handle this
+      });
+    }
+
+    // Add some default genres based on artist popularity if none are found
+    if (genres.size === 0) {
+      // Common genres that match with popular artists
+      ['rock', 'pop', 'alternative', 'indie', 'electronic'].forEach(g => genres.add(g));
+    }
+
+    console.log("User artists:", Array.from(artists));
+    console.log("User genres:", Array.from(genres));
+
+    // Save for other functions to use
+    sessionStorage.setItem('userArtists', JSON.stringify(Array.from(artists)));
+    sessionStorage.setItem('userGenres', JSON.stringify(Array.from(genres)));
+
+    // Prepare to display results
+    let html = '<div class="row">';
+    let count = 0;
+    const max = 9; // Show up to 9 recommendations
+    const allFetched = []; // Track all fetched songs to avoid duplicates
+    
+    // Create arrays from sets for easier manipulation
+    const artistsArray = Array.from(artists);
+    const genresArray = Array.from(genres);
+    
+    // Fallback search terms if needed
+    const wildcards = ['pop', 'rock', 'new', 'top', 'remix', 'indie', 'alternative'];
+
+    // Helper: shuffle array
+    const shuffleArray = arr => {
+      const newArr = [...arr]; // Create a copy to avoid modifying the original
+      for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+      }
+      return newArr;
+    };
+
+    // Helper: fetch songs for a term
+    async function fetchSongs(term) {
+      try {
+        console.log(`Fetching songs for term: ${term}`);
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&limit=5`);
+        const data = await res.json();
+        console.log(`Got ${data.results?.length || 0} results for term: ${term}`);
+        return data.results || [];
+      } catch (error) {
+        console.error(`Error fetching songs for term ${term}:`, error);
+        return [];
+      }
+    }
+
+    // Helper: check if a song is already in user selections
+    function isInUserSelection(song) {
+      if (!current.selectedSongs) return false;
+      
+      return current.selectedSongs.some(s => 
+        s.title?.toLowerCase() === song.trackName?.toLowerCase() && 
+        s.artist?.toLowerCase() === song.artistName?.toLowerCase()
+      );
+    }
+
+    // Helper: check if a song is already in fetched recommendations
+    function isInFetchedSongs(song) {
+      return allFetched.some(s => 
+        s.trackName?.toLowerCase() === song.trackName?.toLowerCase() && 
+        s.artistName?.toLowerCase() === song.artistName?.toLowerCase()
+      );
+    }
+
+    // Helper: build song card
+    function createCard(song, idx) {
+      // Safely escape quotes
+      const t = song.trackName?.replace(/'/g, "\\'") || "";
+      const ar = song.artistName?.replace(/'/g, "\\'") || "";
+      const col = song.collectionName ? song.collectionName.replace(/'/g, "\\'") : '';
+      const img = song.artworkUrl100?.replace('100x100','300x300') || "";
+      const preview = song.previewUrl || "";
+
+      return `
+        <div class="col-md-4 mb-4" id="rec${idx}">
+          <div class="card h-100">
+            <div class="position-absolute top-0 end-0 p-2">
+              <button class="btn btn-sm btn-outline-danger" onclick="replaceRecommendation('rec${idx}','wildcard','')">
+                <i class="bi bi-x-circle"></i> Replace
+              </button>
+            </div>
+            <img src="${img}" class="card-img-top" alt="${t}">
+            <div class="card-body">
+              <h5 class="card-title">${t}</h5>
+              <p class="card-text">Artist: ${ar}</p>
+              <p class="card-text">Album: ${col}</p>
+              ${preview ? `<audio controls class="w-100 mb-2"><source src="${preview}" type="audio/mpeg"></audio>` : '<p class="text-center">No preview available</p>'}
+              <button class="btn btn-primary w-100" onclick="selectSong('${t}','${ar}','${col}','${song.artworkUrl100}')">Select</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // STEP 1: Try from artist list
+    for (const artist of shuffleArray(artistsArray)) {
+      if (count >= max) break;
+      
+      console.log(`Searching for recommendations from artist: ${artist}`);
+      const songs = await fetchSongs(artist);
+      
+      for (const song of songs) {
+        if (count >= max) break;
+        
+        // Skip invalid songs, duplicates, or user's own selections
+        if (!song.trackName || !song.artistName) continue;
+        if (isInUserSelection(song)) continue;
+        if (isInFetchedSongs(song)) continue;
+        
+        console.log(`Adding recommendation: ${song.trackName} by ${song.artistName}`);
+        html += createCard(song, count);
+        allFetched.push({ 
+          trackName: song.trackName, 
+          artistName: song.artistName 
+        });
+        count++;
+      }
+    }
+
+    // STEP 2: Try from genre list
+    for (const genre of shuffleArray(genresArray)) {
+      if (count >= max) break;
+      
+      console.log(`Searching for recommendations from genre: ${genre}`);
+      const songs = await fetchSongs(genre);
+      
+      for (const song of songs) {
+        if (count >= max) break;
+        
+        if (!song.trackName || !song.artistName) continue;
+        if (isInUserSelection(song)) continue;
+        if (isInFetchedSongs(song)) continue;
+        
+        console.log(`Adding recommendation: ${song.trackName} by ${song.artistName}`);
+        html += createCard(song, count);
+        allFetched.push({ 
+          trackName: song.trackName, 
+          artistName: song.artistName 
+        });
+        count++;
+      }
+    }
+
+    // STEP 3: Fill remaining with wildcards
+    for (const term of shuffleArray(wildcards)) {
+      if (count >= max) break;
+      
+      console.log(`Searching for recommendations from wildcard: ${term}`);
+      const songs = await fetchSongs(term);
+      
+      for (const song of songs) {
+        if (count >= max) break;
+        
+        if (!song.trackName || !song.artistName) continue;
+        if (isInUserSelection(song)) continue;
+        if (isInFetchedSongs(song)) continue;
+        
+        console.log(`Adding recommendation: ${song.trackName} by ${song.artistName}`);
+        html += createCard(song, count);
+        allFetched.push({ 
+          trackName: song.trackName, 
+          artistName: song.artistName 
+        });
+        count++;
+      }
+    }
+
+    html += '</div>';
+    
+    // Display results or error message
+    div.innerHTML = count === 0
+      ? '<p class="text-center">Could not load recommendations. Try again later.</p>'
+      : html;
+
+  } catch (error) {
+    console.error("Error loading recommendations:", error);
+    div.innerHTML = '<p class="text-center">Failed to load recommendations. Try again later.</p>';
+  }
+}
+async function replaceRecommendation(recId, sourceType, sourceValue) {
+  const card = document.getElementById(recId);
+  if (!card) return;
+  const orig = card.innerHTML;
+  card.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="loader"></div></div>';
+
+  try {
+    const artists = JSON.parse(sessionStorage.getItem('userArtists') || '[]');
+    const genres = JSON.parse(sessionStorage.getItem('userGenres') || '[]');
+
+    // Get currently displayed songs to check for duplicates
+    const currentlyDisplayed = [];
+    const recommendationCards = document.querySelectorAll('#personalizedContent .card');
+    recommendationCards.forEach(cardElement => {
+      const titleElement = cardElement.querySelector('.card-title');
+      const artistElement = cardElement.querySelector('.card-text');
+      if (titleElement && artistElement) {
+        const title = titleElement.textContent;
+        const artistText = artistElement.textContent;
+        const artist = artistText.startsWith('Artist:') ? artistText.substring(7).trim() : '';
+        if (title && artist) {
+          currentlyDisplayed.push({ title, artist });
+        }
+      }
+    });
+
+    // Determine what value to fetch next
+    let fetchType = sourceType, fetchValue = sourceValue;
+    if (sourceType === 'artist') {
+      const others = artists.filter(a => a !== sourceValue);
+      if (others.length) {
+        fetchValue = others[Math.floor(Math.random() * others.length)];
+      } else if (genres.length) {
+        fetchType = 'genre';
+        fetchValue = genres[Math.floor(Math.random() * genres.length)];
+      }
+    } else {
+      const others = genres.filter(g => g !== sourceValue);
+      if (others.length) {
+        fetchValue = others[Math.floor(Math.random() * others.length)];
+      } else if (artists.length) {
+        fetchType = 'artist';
+        fetchValue = artists[Math.floor(Math.random() * artists.length)];
+      }
+    }
+
+    // ✅ Use CORS proxy
+    const proxyUrl = 'https://corsproxy.io/?';
+    const targetUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(fetchValue)}&media=music&entity=song&limit=10`;
+    const res = await fetch(proxyUrl + encodeURIComponent(targetUrl));
+
+    if (!res.ok) throw new Error(`API request failed with status ${res.status}`);
+
+    const data = await res.json();
+
+    // Filter out any songs that are already displayed
+    const uniqueResults = data.results.filter(result => {
+      return !currentlyDisplayed.some(item =>
+        item.title === result.trackName &&
+        item.artist === result.artistName
+      );
+    });
+
+    // Try to find a song by an artist that's not already in the user's selections
+    let valid = uniqueResults.find(r => !(artists.includes(r.artistName)));
+
+    // If no unique result found, use any unique result or fallback
+    if (!valid && uniqueResults.length > 0) {
+      valid = uniqueResults[0];
+    } else if (!valid && data.results.length > 0) {
+      valid = data.results[0];
+      console.log("Warning: Could not find a unique song. Using potentially duplicate song.");
+    }
+
+    if (!valid) throw new Error("No valid song found");
+
+    const t = valid.trackName.replace(/'/g, "\\'");
+    const ar = valid.artistName.replace(/'/g, "\\'");
+    const col = valid.collectionName ? valid.collectionName.replace(/'/g, "\\'") : "";
+    const previewUrl = valid.previewUrl || "";
+
+    card.innerHTML = `
+      <div class="card h-100">
+        <div class="position-absolute top-0 end-0 p-2">
+          <button class="btn btn-sm btn-outline-danger" onclick="replaceRecommendation('${recId}','${fetchType}','${fetchValue.replace(/'/g, "\\'")}')">
+            <i class="bi bi-x-circle"></i> Replace
+          </button>
+        </div>
+        <img src="${valid.artworkUrl100.replace('100x100','300x300')}" class="card-img-top" alt="${t}">
+        <div class="card-body">
+          <h5 class="card-title">${valid.trackName}</h5>
+          <p class="card-text">Artist: ${valid.artistName}</p>
+          <p class="card-text">Album: ${valid.collectionName || ""}</p>
+          ${previewUrl ? `<audio controls class="w-100 mb-2"><source src="${previewUrl}" type="audio/mpeg"></audio>` : '<p class="text-center">No preview available</p>'}
+          <button class="btn btn-primary w-100" onclick="selectSong('${t}','${ar}','${col}','${valid.artworkUrl100}')">Select</button>
+        </div>
+      </div>`;
+      
+  } catch (error) {
+    console.log("Error replacing recommendation:", error);
+    card.innerHTML = orig;
+    alert("Could not replace recommendation. Please try again.");
+  }
+}
+
+
+async function searchAndPreview(songTitle, artistName) {
+  try {
+    const q = `${encodeURIComponent(songTitle)}%20${encodeURIComponent(artistName)}`;
+    const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&entity=song&limit=1`);
+    const data = await res.json();
+    if (!data.results.length) { alert("No preview available."); return; }
+    const song = data.results[0];
+    const modalId = 'modal'+Date.now();
+    const modal = document.createElement('div');
+    modal.className='modal fade'; modal.id=modalId;
+    modal.innerHTML = `<div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">${song.trackName} - ${song.artistName}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-center"><img src="${song.artworkUrl100.replace('100x100','300x300')}" class="img-fluid mb-3"><audio controls autoplay class="w-100"><source src="${song.previewUrl}" type="audio/mpeg"></audio></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-primary" onclick="selectSong('${song.trackName.replace(/'/g,"\'")}','${song.artistName.replace(/'/g,"\'")}','${song.collectionName.replace(/'/g,"\'")}','${song.artworkUrl100}')">Select Song</button></div></div></div>`;
+    document.body.append(modal);
+    const bsModal = new bootstrap.Modal(document.getElementById(modalId)); bsModal.show();
+    document.getElementById(modalId).addEventListener('hidden.bs.modal',()=>modal.remove());
+  } catch { alert("Error playing preview."); }
+}
+
+// Replace the existing selectSong function with this updated version
+function selectSong(track, artist, album, albumArt) {
+  const songId = `${track}-${artist}`.replace(/\s+/g, '-').toLowerCase();
+  selectedSong = { 
+    id: songId, 
+    title: track, 
+    artist: artist, 
+    album: album, 
+    artwork: albumArt 
+  };
+  
+  // Create modal for selection and rating
+  const modalId = 'songSelectModal' + Date.now();
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = modalId;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="background-color: #1f1f1f; color: #f1f1f1;">
+        <div class="modal-header">
+          <h5 class="modal-title">Add to your collection</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img src="${albumArt}" class="img-fluid mb-3" style="max-height: 200px; border-radius: 5px;">
+          <h5>${track}</h5>
+          <p>Artist: ${artist}</p>
+          <p>Album: ${album || 'Single'}</p>
+          <div id="song-rating-container" class="my-3"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveSelectedSong()">Add to Collection</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Create and add the star rating system
+  const starContainer = createStarRating(songId);
+  setTimeout(() => {
+    const container = document.getElementById('song-rating-container');
+    if (container) container.appendChild(starContainer);
+  }, 100);
+  
+  // Show the modal
+  const bsModal = new bootstrap.Modal(document.getElementById(modalId));
+  bsModal.show();
+  
+  // Clean up modal when hidden
+  document.getElementById(modalId).addEventListener('hidden.bs.modal', () => {
+    modal.remove();
+  });
+}
+
+// Create the star rating function from songSearch.html
+function createStarRating(id) {
+  const container = document.createElement("div");
+  container.className = "stars text-center"; // use Bootstrap class for centering
+
+  const maxStars = 5;
+
+  function render(rating) {
+    container.innerHTML = "";
+    for (let i = 1; i <= maxStars; i++) {
+      const star = document.createElement("i");
+      const full = i <= rating;
+      const half = (i - 0.5) === rating;
+
+      // Always use gold color directly on the icon
+      star.style.color = 'gold';
+      star.style.fontSize = '1.5rem';
+      star.style.margin = '0 3px';
+      star.style.cursor = 'pointer';
+
+      if (full) {
+        star.className = "fas fa-star"; // full star
+      } else if (half) {
+        star.className = "fas fa-star-half-alt"; // half star
+      } else {
+        star.className = "far fa-star"; // empty star
+      }
+
+      star.addEventListener("mousemove", (e) => {
+        const rect = e.target.getBoundingClientRect();
+        const isLeftHalf = e.clientX - rect.left < rect.width / 2;
+        star.title = isLeftHalf ? `${i - 0.5}` : `${i}`;
+      });
+
+      star.addEventListener("click", (e) => {
+        const rect = e.target.getBoundingClientRect();
+        const isLeftHalf = e.clientX - rect.left < rect.width / 2;
+        const selectedRating = isLeftHalf ? i - 0.5 : i;
+        localStorage.setItem(`rating-${id}`, selectedRating);
+        render(selectedRating);
+      });
+
+      container.appendChild(star);
+    }
+  }
+
+  const savedRating = parseFloat(localStorage.getItem(`rating-${id}`)) || 0;
+  render(savedRating);
+  return container;
+}
+
+
+
+
+async function saveSelectedSong() {
+  if (!selectedSong || !loggedInUser) {
+    alert("Select a song first and ensure you are logged in.");
+    return;
+  }
+  
+  try {
+    const rating = parseFloat(localStorage.getItem(`rating-${selectedSong.id}`)) || 0;
+    selectedSong.rating = rating;
+
+    const data = await getJSONData();
+    const users = JSON.parse(data);
+    const userIndex = users.findIndex(u => u.Username === loggedInUser.Username);
+    if (userIndex === -1) {
+      throw new Error("User not found");
+    }
+
+    const user = users[userIndex];
+    user.selectedSongs = user.selectedSongs || [];
+
+    const alreadyExists = user.selectedSongs.some(
+      song => song.id === selectedSong.id
+    );
+
+    if (alreadyExists) {
+      alert(`"${selectedSong.title}" is already in your collection.`);
+    } else {
+      user.selectedSongs.push(selectedSong);
+      await putJSONData(users);
+      sessionStorage.setItem('loggedInUser', JSON.stringify(user));
+      alert(`"${selectedSong.title}" by ${selectedSong.artist} added with ${rating} stars!`);
+    }
+
+    // Close the modal
+    const modalElement = document.querySelector('.modal.show');
+    if (modalElement) {
+      const modal = bootstrap.Modal.getInstance(modalElement);
+      if (modal) modal.hide();
+    }
+
+    // Refresh recommendations
+    if (document.querySelector('#personalized-tab.active')) {
+      loadPersonalizedRecommendations();
+    }
+
+  } catch (error) {
+    console.error("Error saving song:", error);
+    alert("Failed to save the song. Try again later.");
+  }
+}
+
+function discoverByGenre() {
+  const select = document.getElementById('genreSelect');
+  const content = document.getElementById('discoverContent');
+  content.innerHTML = '<div class="loader"></div>';
+  const map = { pop:14, rock:21, hiphop:18, electronic:7, jazz:11, classical:5, country:6, rnb:15 };
+  const genres = select.value==='all'? Object.entries(map): [[select.value,map[select.value]]];
+  Promise.all(genres.map(([k,id])=>fetch(`https://itunes.apple.com/us/rss/topsongs/limit=50/genre=${id}/json`).then(r=>r.json()).then(d=>({k,entries:d.feed.entry||[]}))))
+    .then(async results => {
+      content.innerHTML='';
+      for (const {k, entries} of results) {
+        let page = 0, per = 10;
+        const genreId = `genre-${k}`;
+        window[`${k}Page`] = 0; // Create dynamic variable for page tracking
+        
+        const render = async () => {
+          content.innerHTML = '<div class="loader"></div>';
+          const start = window[`${k}Page`] * per;
+          const slice = entries.slice(start, start + per);
+          
+          let html = `<div class="mb-4"><h4>${k.toUpperCase()}</h4><div class="row" id="${genreId}">`;
+          content.innerHTML = html + '</div></div>';
+          
+          // Add placeholder cards first
+          const genreDiv = document.getElementById(genreId);
+          for (let i = 0; i < slice.length; i++) {
+            const item = slice[i];
+            const title = item.title.label;
+            const artist = item['im:artist'].label;
+            const img = item['im:image'][2].label;
+            const cat = item.category.attributes.term;
+            const cardId = `${genreId}-card-${i}`;
+            
+            if (isDuplicateSong(title, artist)) return; 
+
+
+            genreDiv.innerHTML += `
+              <div class="col-md-4 mb-4" id="${cardId}">
+                <div class="card h-100">
+                  <img src="${img}" class="card-img-top" alt="${title}">
+                  <div class="card-body">
+                    <h5 class="card-title">${title}</h5>
+                    <p class="card-text">Artist: ${artist}</p>
+                    <p class="card-text">Genre: ${cat}</p>
+                    <div class="audio-placeholder">Loading preview...</div>
+                    <button class="btn btn-primary w-100" onclick="selectSong('${title.replace(/'/g, "\'")}', '${artist.replace(/'/g, "\'")}', '', '${img}')">Select</button>
+                  </div>
+                </div>
+              </div>`;
+          }
+          
+          // Now fetch preview URLs for each card
+          for (let i = 0; i < slice.length; i++) {
+            const item = slice[i];
+            const title = item.title.label;
+            const artist = item['im:artist'].label;
+            const cardId = `${genreId}-card-${i}`;
+            
+            const songDetails = await fetchSongDetails(title, artist);
+            const cardElement = document.getElementById(cardId);
+            
+            if (cardElement && songDetails && songDetails.previewUrl) {
+              const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
+              audioPlaceholder.innerHTML = `
+                <audio controls class="w-100 mb-2">
+                  <source src="${songDetails.previewUrl}" type="audio/mpeg">
+                </audio>`;
+              
+              // Update select button with full details
+              const selectBtn = cardElement.querySelector('.btn-primary');
+              selectBtn.onclick = function() {
+                selectSong(
+                  songDetails.trackName.replace(/'/g, "\'"), 
+                  songDetails.artistName.replace(/'/g, "\'"), 
+                  songDetails.collectionName ? songDetails.collectionName.replace(/'/g, "\'") : '', 
+                  songDetails.artworkUrl100
+                );
+              };
+            } else if (cardElement) {
+              const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
+              audioPlaceholder.innerHTML = `<p class="text-center">No preview available</p>`;
+            }
+          }
+          
+          // Add pagination controls
+          const paginationDiv = document.createElement('div');
+          paginationDiv.className = 'd-flex justify-content-between align-items-center';
+          paginationDiv.innerHTML = `
+            <button class="btn btn-outline-secondary" ${window[`${k}Page`] === 0 ? 'disabled' : ''} 
+              onclick="${k}Page--; render();">Previous</button>
+            <span>Page ${window[`${k}Page`] + 1}</span>
+            <button class="btn btn-outline-secondary" ${(window[`${k}Page`] + 1) * per >= entries.length ? 'disabled' : ''} 
+              onclick="${k}Page++; render();">Next</button>
+          `;
+          
+          genreDiv.parentNode.appendChild(paginationDiv);
+        };
+        
+        await render();
+      }
+    }).catch(() => content.innerHTML = '<p class="text-center">Error loading genres.</p>');
+}
+</script>
+</body>
+</html>
