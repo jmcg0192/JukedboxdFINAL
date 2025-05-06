@@ -210,7 +210,7 @@ function renderTrendingSongs(start, count) {
             <p class="card-text">Artist: ${artist}</p>
             <p class="card-text">Genre: ${genre}</p>
             <div class="audio-placeholder">Loading preview...</div>
-            <button class="btn btn-primary w-100" onclick="selectSong('${title.replace(/'/g, "\'")}', '${artist.replace(/'/g, "\'")}', '', '${img}')">Select</button>
+            
           </div>
         </div>
       </div>`;
@@ -399,9 +399,7 @@ async function loadPersonalizedRecommendations() {
         <div class="col-md-4 mb-4" id="rec${idx}">
           <div class="card h-100">
             <div class="position-absolute top-0 end-0 p-2">
-              <button class="btn btn-sm btn-outline-danger" onclick="replaceRecommendation('rec${idx}','wildcard','')">
-                <i class="bi bi-x-circle"></i> Replace
-              </button>
+              
             </div>
             <img src="${img}" class="card-img-top" alt="${t}">
             <div class="card-body">
@@ -409,7 +407,7 @@ async function loadPersonalizedRecommendations() {
               <p class="card-text">Artist: ${ar}</p>
               <p class="card-text">Album: ${col}</p>
               ${preview ? `<audio controls class="w-100 mb-2"><source src="${preview}" type="audio/mpeg"></audio>` : '<p class="text-center">No preview available</p>'}
-              <button class="btn btn-primary w-100" onclick="selectSong('${t}','${ar}','${col}','${song.artworkUrl100}')">Select</button>
+              
             </div>
           </div>
         </div>`;
@@ -502,31 +500,33 @@ async function loadPersonalizedRecommendations() {
 }
 async function replaceRecommendation(recId, sourceType, sourceValue) {
   const card = document.getElementById(recId);
-  if (!card) return;
+  if (!card) {
+    console.error(`Card with id ${recId} not found.`);
+    return;
+  }
+  
   const orig = card.innerHTML;
   card.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="loader"></div></div>';
 
   try {
+    console.log("Fetching user data...");
     const artists = JSON.parse(sessionStorage.getItem('userArtists') || '[]');
     const genres = JSON.parse(sessionStorage.getItem('userGenres') || '[]');
+    console.log("Artists:", artists);
+    console.log("Genres:", genres);
 
-    // Get currently displayed songs to check for duplicates
     const currentlyDisplayed = [];
-    const recommendationCards = document.querySelectorAll('#personalizedContent .card');
-    recommendationCards.forEach(cardElement => {
+    document.querySelectorAll('#personalizedContent .card').forEach(cardElement => {
       const titleElement = cardElement.querySelector('.card-title');
       const artistElement = cardElement.querySelector('.card-text');
       if (titleElement && artistElement) {
         const title = titleElement.textContent;
         const artistText = artistElement.textContent;
         const artist = artistText.startsWith('Artist:') ? artistText.substring(7).trim() : '';
-        if (title && artist) {
-          currentlyDisplayed.push({ title, artist });
-        }
+        if (title && artist) currentlyDisplayed.push({ title, artist });
       }
     });
 
-    // Determine what value to fetch next
     let fetchType = sourceType, fetchValue = sourceValue;
     if (sourceType === 'artist') {
       const others = artists.filter(a => a !== sourceValue);
@@ -546,45 +546,53 @@ async function replaceRecommendation(recId, sourceType, sourceValue) {
       }
     }
 
-    // ✅ Use CORS proxy
-    const proxyUrl = 'https://corsproxy.io/?';
-    const targetUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(fetchValue)}&media=music&entity=song&limit=10`;
-    const res = await fetch(proxyUrl + encodeURIComponent(targetUrl));
+    console.log(`Fetching data from iTunes API with search term: ${fetchValue}`);
 
+    const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(fetchValue)}&media=music&entity=song&limit=25`);
     if (!res.ok) throw new Error(`API request failed with status ${res.status}`);
-
+    
     const data = await res.json();
+    console.log("iTunes API Response:", data);
 
-    // Filter out any songs that are already displayed
-    const uniqueResults = data.results.filter(result => {
+    let results = data.results;
+
+    // Filter by genre if applicable
+    if (fetchType === 'genre') {
+      results = results.filter(r =>
+        r.primaryGenreName &&
+        r.primaryGenreName.toLowerCase() === fetchValue.toLowerCase()
+      );
+    }
+
+    // Filter out duplicates
+    const uniqueResults = results.filter(result => {
       return !currentlyDisplayed.some(item =>
-        item.title === result.trackName &&
-        item.artist === result.artistName
+        item.title === result.trackName && item.artist === result.artistName
       );
     });
 
-    // Try to find a song by an artist that's not already in the user's selections
     let valid = uniqueResults.find(r => !(artists.includes(r.artistName)));
 
-    // If no unique result found, use any unique result or fallback
     if (!valid && uniqueResults.length > 0) {
       valid = uniqueResults[0];
-    } else if (!valid && data.results.length > 0) {
-      valid = data.results[0];
-      console.log("Warning: Could not find a unique song. Using potentially duplicate song.");
+    } else if (!valid && results.length > 0) {
+      valid = results[0];
+      console.warn("Warning: Could not find a unique song. Using potentially duplicate song.");
     }
 
     if (!valid) throw new Error("No valid song found");
 
-    const t = valid.trackName.replace(/'/g, "\\'");
-    const ar = valid.artistName.replace(/'/g, "\\'");
-    const col = valid.collectionName ? valid.collectionName.replace(/'/g, "\\'") : "";
+    const t = valid.trackName ? valid.trackName.replace(/'/g, "\\'") : 'Unknown';
+    const ar = valid.artistName ? valid.artistName.replace(/'/g, "\\'") : 'Unknown';
+    const col = valid.collectionName ? valid.collectionName.replace(/'/g, "\\'") : 'Unknown';
     const previewUrl = valid.previewUrl || "";
 
+    console.log("Selected Track:", valid.trackName);
+    
     card.innerHTML = `
       <div class="card h-100">
         <div class="position-absolute top-0 end-0 p-2">
-          <button class="btn btn-sm btn-outline-danger" onclick="replaceRecommendation('${recId}','${fetchType}','${fetchValue.replace(/'/g, "\\'")}')">
+          <button class="btn btn-sm btn-outline-danger" onclick="replaceRecommendation('${recId}','${fetchType}','${encodeURIComponent(fetchValue)}')">
             <i class="bi bi-x-circle"></i> Replace
           </button>
         </div>
@@ -597,13 +605,16 @@ async function replaceRecommendation(recId, sourceType, sourceValue) {
           <button class="btn btn-primary w-100" onclick="selectSong('${t}','${ar}','${col}','${valid.artworkUrl100}')">Select</button>
         </div>
       </div>`;
-      
+
   } catch (error) {
-    console.log("Error replacing recommendation:", error);
+    console.error("Error replacing recommendation:", error);
     card.innerHTML = orig;
     alert("Could not replace recommendation. Please try again.");
   }
 }
+
+
+
 
 
 async function searchAndPreview(songTitle, artistName) {
@@ -625,7 +636,17 @@ async function searchAndPreview(songTitle, artistName) {
 
 // Replace the existing selectSong function with this updated version
 function selectSong(track, artist, album, albumArt) {
-  const songId = `${track}-${artist}`.replace(/\s+/g, '-').toLowerCase();
+  // Create a numeric ID if possible, or a string ID as fallback
+  let songId;
+  try {
+    // Try to generate a more database-friendly numeric ID
+    const randomPart = Date.now().toString().slice(-10);
+    songId = parseInt(randomPart);
+  } catch (e) {
+    // Fallback to string ID if parsing fails
+    songId = `${track}-${artist}`.replace(/\s+/g, '-').toLowerCase();
+  }
+  
   selectedSong = { 
     id: songId, 
     title: track, 
@@ -655,7 +676,7 @@ function selectSong(track, artist, album, albumArt) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="saveSelectedSong()">Add to Collection</button>
+          <button type="button" class="btn btn-primary" onclick="saveSelectedSong()">Add to List</button>
         </div>
       </div>
     </div>
@@ -731,9 +752,6 @@ function createStarRating(id) {
   return container;
 }
 
-
-
-
 async function saveSelectedSong() {
   if (!selectedSong || !loggedInUser) {
     alert("Select a song first and ensure you are logged in.");
@@ -742,10 +760,18 @@ async function saveSelectedSong() {
   
   try {
     const rating = parseFloat(localStorage.getItem(`rating-${selectedSong.id}`)) || 0;
-    selectedSong.rating = rating;
+    
+    // Create a new song object that matches the database format
+    const songToSave = {
+      id: selectedSong.id.includes('-') ? parseInt(Date.now().toString().slice(-10)) : parseInt(selectedSong.id),
+      title: selectedSong.title,
+      artist: selectedSong.artist,
+      artwork: selectedSong.artwork,
+      rating: rating
+    };
 
     const data = await getJSONData();
-    const users = JSON.parse(data);
+    const users = data; // The data is already parsed in getJSONData()
     const userIndex = users.findIndex(u => u.Username === loggedInUser.Username);
     if (userIndex === -1) {
       throw new Error("User not found");
@@ -754,17 +780,20 @@ async function saveSelectedSong() {
     const user = users[userIndex];
     user.selectedSongs = user.selectedSongs || [];
 
+    // Check if the song already exists in the collection
     const alreadyExists = user.selectedSongs.some(
-      song => song.id === selectedSong.id
+      song => song.title === songToSave.title && song.artist === songToSave.artist
     );
 
     if (alreadyExists) {
-      alert(`"${selectedSong.title}" is already in your collection.`);
+      alert(`"${songToSave.title}" is already in your collection.`);
     } else {
-      user.selectedSongs.push(selectedSong);
+      user.selectedSongs.push(songToSave);
       await putJSONData(users);
+      
+      // Update the session storage with latest user data
       sessionStorage.setItem('loggedInUser', JSON.stringify(user));
-      alert(`"${selectedSong.title}" by ${selectedSong.artist} added with ${rating} stars!`);
+      alert(`"${songToSave.title}" by ${songToSave.artist} added with ${rating} stars!`);
     }
 
     // Close the modal
@@ -789,103 +818,96 @@ function discoverByGenre() {
   const select = document.getElementById('genreSelect');
   const content = document.getElementById('discoverContent');
   content.innerHTML = '<div class="loader"></div>';
-  const map = { pop:14, rock:21, hiphop:18, electronic:7, jazz:11, classical:5, country:6, rnb:15 };
-  const genres = select.value==='all'? Object.entries(map): [[select.value,map[select.value]]];
-  Promise.all(genres.map(([k,id])=>fetch(`https://itunes.apple.com/us/rss/topsongs/limit=50/genre=${id}/json`).then(r=>r.json()).then(d=>({k,entries:d.feed.entry||[]}))))
-    .then(async results => {
-      content.innerHTML='';
-      for (const {k, entries} of results) {
-        let page = 0, per = 10;
-        const genreId = `genre-${k}`;
-        window[`${k}Page`] = 0; // Create dynamic variable for page tracking
-        
-        const render = async () => {
-          content.innerHTML = '<div class="loader"></div>';
-          const start = window[`${k}Page`] * per;
-          const slice = entries.slice(start, start + per);
-          
-          let html = `<div class="mb-4"><h4>${k.toUpperCase()}</h4><div class="row" id="${genreId}">`;
-          content.innerHTML = html + '</div></div>';
-          
-          // Add placeholder cards first
-          const genreDiv = document.getElementById(genreId);
-          for (let i = 0; i < slice.length; i++) {
-            const item = slice[i];
-            const title = item.title.label;
-            const artist = item['im:artist'].label;
-            const img = item['im:image'][2].label;
-            const cat = item.category.attributes.term;
-            const cardId = `${genreId}-card-${i}`;
-            
-            if (isDuplicateSong(title, artist)) return; 
 
+  const map = {
+    pop: 14,
+    rock: 21,
+    hiphop: 18,
+    electronic: 7,
+    jazz: 11,
+    classical: 5,
+    country: 6,
+    rnb: 15
+  };
 
-            genreDiv.innerHTML += `
-              <div class="col-md-4 mb-4" id="${cardId}">
-                <div class="card h-100">
-                  <img src="${img}" class="card-img-top" alt="${title}">
-                  <div class="card-body">
-                    <h5 class="card-title">${title}</h5>
-                    <p class="card-text">Artist: ${artist}</p>
-                    <p class="card-text">Genre: ${cat}</p>
-                    <div class="audio-placeholder">Loading preview...</div>
-                    <button class="btn btn-primary w-100" onclick="selectSong('${title.replace(/'/g, "\'")}', '${artist.replace(/'/g, "\'")}', '', '${img}')">Select</button>
-                  </div>
-                </div>
-              </div>`;
-          }
-          
-          // Now fetch preview URLs for each card
-          for (let i = 0; i < slice.length; i++) {
-            const item = slice[i];
-            const title = item.title.label;
-            const artist = item['im:artist'].label;
-            const cardId = `${genreId}-card-${i}`;
-            
-            const songDetails = await fetchSongDetails(title, artist);
-            const cardElement = document.getElementById(cardId);
-            
-            if (cardElement && songDetails && songDetails.previewUrl) {
-              const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
-              audioPlaceholder.innerHTML = `
-                <audio controls class="w-100 mb-2">
-                  <source src="${songDetails.previewUrl}" type="audio/mpeg">
-                </audio>`;
-              
-              // Update select button with full details
-              const selectBtn = cardElement.querySelector('.btn-primary');
-              selectBtn.onclick = function() {
-                selectSong(
-                  songDetails.trackName.replace(/'/g, "\'"), 
-                  songDetails.artistName.replace(/'/g, "\'"), 
-                  songDetails.collectionName ? songDetails.collectionName.replace(/'/g, "\'") : '', 
-                  songDetails.artworkUrl100
-                );
-              };
-            } else if (cardElement) {
-              const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
-              audioPlaceholder.innerHTML = `<p class="text-center">No preview available</p>`;
-            }
-          }
-          
-          // Add pagination controls
-          const paginationDiv = document.createElement('div');
-          paginationDiv.className = 'd-flex justify-content-between align-items-center';
-          paginationDiv.innerHTML = `
-            <button class="btn btn-outline-secondary" ${window[`${k}Page`] === 0 ? 'disabled' : ''} 
-              onclick="${k}Page--; render();">Previous</button>
-            <span>Page ${window[`${k}Page`] + 1}</span>
-            <button class="btn btn-outline-secondary" ${(window[`${k}Page`] + 1) * per >= entries.length ? 'disabled' : ''} 
-              onclick="${k}Page++; render();">Next</button>
-          `;
-          
-          genreDiv.parentNode.appendChild(paginationDiv);
-        };
-        
-        await render();
+  const genres = select.value === 'all'
+    ? Object.entries(map)
+    : [[select.value, map[select.value]]];
+
+  Promise.all(genres.map(([k, id]) =>
+    fetch(`https://itunes.apple.com/us/rss/topsongs/limit=50/genre=${id}/json`)
+      .then(r => r.json())
+      .then(d => ({ k, entries: d.feed.entry || [] }))
+  )).then(async results => {
+    content.innerHTML = '';
+
+    for (const { k, entries } of results) {
+      const genreId = `genre-${k}`;
+      const per = 10;
+
+      const slice = entries.slice(0, per);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mb-4';
+      wrapper.innerHTML = `
+        <h4>${k.toUpperCase()}</h4>
+        <div class="row" id="${genreId}"></div>
+      `;
+      content.appendChild(wrapper);
+
+      const genreDiv = wrapper.querySelector(`#${genreId}`);
+
+      for (let i = 0; i < slice.length; i++) {
+        const item = slice[i];
+        const title = item.title.label;
+        const artist = item['im:artist'].label;
+        const img = item['im:image'][2].label;
+        const cat = item.category.attributes.term;
+        const cardId = `${genreId}-card-${i}`;
+
+        if (isDuplicateSong(title, artist)) continue;
+
+        genreDiv.innerHTML += `
+          <div class="col-md-4 mb-4" id="${cardId}">
+            <div class="card h-100">
+              <img src="${img}" class="card-img-top" alt="${title}">
+              <div class="card-body">
+                <h5 class="card-title">${title}</h5>
+                <p class="card-text">Artist: ${artist}</p>
+                <p class="card-text">Genre: ${cat}</p>
+                <div class="audio-placeholder">Loading preview...</div>
+              </div>
+            </div>
+          </div>`;
       }
-    }).catch(() => content.innerHTML = '<p class="text-center">Error loading genres.</p>');
+
+      for (let i = 0; i < slice.length; i++) {
+        const item = slice[i];
+        const title = item.title.label;
+        const artist = item['im:artist'].label;
+        const cardId = `${genreId}-card-${i}`;
+
+        const songDetails = await fetchSongDetails(title, artist);
+        const cardElement = document.getElementById(cardId);
+
+        if (cardElement && songDetails && songDetails.previewUrl) {
+          const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
+          audioPlaceholder.innerHTML = `
+            <audio controls class="w-100 mb-2">
+              <source src="${songDetails.previewUrl}" type="audio/mpeg">
+            </audio>`;
+        } else if (cardElement) {
+          const audioPlaceholder = cardElement.querySelector('.audio-placeholder');
+          audioPlaceholder.innerHTML = `<p class="text-center">No preview available</p>`;
+        }
+      }
+    }
+  }).catch(() => {
+    content.innerHTML = '<p class="text-center">Error loading genres.</p>';
+  });
 }
+
+
+
 </script>
 </body>
 </html>
